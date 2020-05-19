@@ -132,7 +132,15 @@ def project(con, account):
 
 def main():
     con = cx_Oracle.Connection('username/password@host:port/sid')
-    project(con,account)
+    qry2 = ("select distinct ACCNT "
+        "from tablename ")
+    cur=con.cursor().execute(qry2)
+    accountA=cur.fetchall()
+    accountS = [e for e, in accountA]
+    for d in accountS:
+        account = d
+        project(con,account)
+    
     
 if __name__ == "__main__":
     start= time.time()

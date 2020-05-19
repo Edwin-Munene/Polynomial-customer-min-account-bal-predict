@@ -1,0 +1,143 @@
+import time
+import cx_Oracle
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from array import *
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+
+def project(con, account):
+    cur = con.cursor()
+    qry = ("select ROW_NUM, CON, SEGMENT_CLASS, ACCNT " 
+           "from table_name "
+           "where columname = '{0}' "
+          ).format(account)
+    qry1 = ("select distinct segment_class "
+            "from customer_bal "
+           "where columname = '{0}' "
+           ).format(account)
+    qry2 = ("select distinct ACCNT "
+            "from customer_bal "
+           "where columname = '{0}' "
+           ).format(account)
+    
+    print('starting query')
+
+    #start= time.time()
+    cur.execute(qry)
+    
+    #fetch customer transactions from db
+    df = pd.DataFrame(cur.fetchall())
+   
+    #fetch segments
+    cur.execute(qry1)
+    res=cur.fetchall()
+    segment = [e for e, in res]
+    
+    #fetch account
+    cur.execute(qry2)
+    account=cur.fetchall()
+    account = [e for e, in account]
+    #cur.close()
+
+    print('finished query')
+     
+    X = df.iloc[:, :-3].values
+    y = df.iloc[:, -3].values
+    
+    poly_reg = PolynomialFeatures(degree = 4)
+    X_poly = poly_reg.fit_transform(X)
+    lin_reg_2 = LinearRegression()
+    lin = lin_reg_2.fit(X_poly, y)
+    
+    month=[8]
+
+    #generate projections
+    x=lin_reg_2.predict(poly_reg.fit_transform([month]))
+    x=x.tolist()
+    print('prediction done')
+    
+    #suggested rates
+    proposal = []
+    
+    # rates to be suggested based on the account balance
+    rat_1=[6]
+    rat_2=[7]
+    rat_3=[7.5]
+    rat_4=[8]
+    rat_5=[9]
+    rat_6=[9.5]
+    for n in account:
+        for i in segment:
+            row=i[0]
+            print(row)
+            if row == 'R':
+                for row in x:
+                    row=int(float(x[0]))
+                    predicted =row
+                    print(predicted)
+                    if predicted <= 100000:
+                        print('6% PA')
+                        proposal.append(rat_1)
+                        print('6% PA')
+                    elif 100000  <predicted <= 1000000:
+                        proposal.append(rat_2)
+                        print('7% PA')
+                    elif 1000000 <predicted <= 10000000:
+                        proposal.append(rat_3)
+                        print('7.5% PA')
+                    elif 10000000 < predicted <= 100000000:
+                        proposal.append(rat_4)
+                        print('8% PA')
+                    elif predicted > 100000000:
+                        proposal.append(rat_5)
+                        print('9% PA')
+            if row == 'C':
+                for row in x:
+                    row=int(float(x[0]))
+                    predicted =row
+        #predicted = int(float(predicted))
+                    print(predicted)
+                    if predicted <= 10000000:
+                        proposal.append(rat_4)
+                        print('8% PA')
+                    elif 10000000 < predicted <= 100000000:
+                        proposal.append(rat_5)
+                        print('9% PA')
+                    elif predicted > 100000000:
+                        proposal.append(rat_6)
+                        print('9.5% PA')
+    
+    PERCENT_OF_RETURN_PA = [e for e, in proposal]
+    MONTHS = month
+    PROJECTED_AMOUNT=x
+    SEGMENTS =segment
+    
+    FINAL= [MONTHS,PROJECTED_AMOUNT,PERCENT_OF_RETURN_PA,SEGMENTS, ACCNT]
+        
+    #insert into DB
+    data = pd.DataFrame({'MONTHS': month, 'PROJECTED_AMOUNT':PROJECTED_AMOUNT,'PERCENT_OF_RETURN_PA':PERCENT_OF_RETURN_PA,'SEGMENTS':SEGMENTS, 'account':ACCNT })
+    #print(data)
+    
+    for record in data.itertuples():
+        insert_statement = f"""insert into tablename(MONTHS,PROJECTED_AMOUNT,PERCENT_OF_RETURN_PA,SEGMENTS,ACCNT)
+        values({record.MONTHS},{record.PROJECTED_AMOUNT},{record.PERCENT_OF_RETURN_PA},'{str(record.SEGMENTS)}', '{str(record.ACCNT)}')"""
+        cur.execute(insert_statement)
+        con.commit()
+    
+    cur.close()
+
+
+
+def main():
+    con = cx_Oracle.Connection('username/password@host:port/sid')
+    project(con,account)
+    
+if __name__ == "__main__":
+    start= time.time()
+    main()
+    print('Inserted in table')
+    end= time.time()
+    print('process took ', timedelta(seconds= end - start))
+    
